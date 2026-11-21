@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Image to Video Generator</title>
+  <script type="module" src="https://cdn.jsdelivr.net/npm/@gradio/client/dist/index.min.js"></script>
+  <style>
+    * { box-sizing: border-box; font-family: 'Segoe UI', sans-serif; }
+    body {
+      background: #0f172a;
+      color: #f8fafc;
+      margin: 0;
+      padding: 16px;
+      display: flex;
+      justify-content: center;
+    }
+    .app-container {
+      width: 100%;
+      max-width: 440px;
+      background: #1e293b;
+      border-radius: 20px;
+      padding: 20px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+    }
+    h1 {
+      font-size: 22px;
+      text-align: center;
+      margin-top: 0;
+      color: #38bdf8;
+    }
+    p.subtitle {
+      text-align: center;
+      font-size: 13px;
+      color: #94a3b8;
+      margin-bottom: 20px;
+    }
+    .upload-box {
+      border: 2px dashed #38bdf8;
+      border-radius: 14px;
+      padding: 20px;
+      text-align: center;
+      cursor: pointer;
+      background: #0f172a;
+      margin-bottom: 16px;
+    }
+    .upload-box img {
+      max-width: 100%;
+      max-height: 220px;
+      border-radius: 10px;
+      display: none;
+      margin: 0 auto;
+    }
+    label {
+      display: block;
+      font-size: 14px;
+      margin-bottom: 6px;
+      color: #cbd5e1;
+    }
+    textarea, select {
+      width: 100%;
+      padding: 12px;
+      border-radius: 10px;
+      border: 1px solid #334155;
+      background: #0f172a;
+      color: #fff;
+      font-size: 14px;
+      margin-bottom: 16px;
+    }
+    button {
+      width: 100%;
+      padding: 14px;
+      border: none;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #0284c7, #38bdf8);
+      color: #fff;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    button:disabled {
+      background: #475569;
+      cursor: not-allowed;
+    }
+    .status {
+      text-align: center;
+      font-size: 13px;
+      color: #fbbf24;
+      margin-top: 12px;
+      min-height: 20px;
+    }
+    .result-box {
+      margin-top: 20px;
+      display: none;
+      text-align: center;
+    }
+    video {
+      width: 100%;
+      border-radius: 12px;
+      background: #000;
+      margin-bottom: 12px;
+    }
+    .download-btn {
+      display: inline-block;
+      width: 100%;
+      padding: 12px;
+      background: #10b981;
+      color: #fff;
+      text-decoration: none;
+      border-radius: 10px;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <div class="app-container">
+    <h1>AI Image to Video</h1>
+    <p class="subtitle">Apni tasveer ko zinda karein (Free AI Video Maker)</p>
+
+    <div class="upload-box" onclick="document.getElementById('imageInput').click()">
+      <span id="uploadText">Tasveer Select Karne Ke Liye Yahan Touch Karein</span>
+      <img id="previewImg" alt="Preview" />
+      <input type="file" id="imageInput" accept="image/*" style="display:none" />
+    </div>
+
+    <label for="promptInput">Motion Prompt (Tasveer mein kya harkat ho?):</label>
+    <textarea id="promptInput" rows="3" placeholder="Misal: Slow cinematic camera zoom in, wind blowing gently, realistic movement"></textarea>
+
+    <label for="durationSelect">Video Pacing / Duration:</label>
+    <select id="durationSelect">
+      <option value="4">4 Seconds (Fast & Smooth)</option>
+      <option value="5" selected>5 Seconds (Standard)</option>
+    </select>
+
+    <button id="generateBtn">Video Banayein (Generate)</button>
+    <div class="status" id="statusText"></div>
+
+    <div class="result-box" id="resultBox">
+      <video id="outputVideo" controls autoplay loop></video>
+      <a id="downloadLink" class="download-btn" download="ai-video.mp4">Video Download Karein</a>
+    </div>
+  </div>
+
+  <script type="module">
+    import { Client } from "https://cdn.jsdelivr.net/npm/@gradio/client/dist/index.min.js";
+
+    const imageInput = document.getElementById('imageInput');
+    const previewImg = document.getElementById('previewImg');
+    const uploadText = document.getElementById('uploadText');
+    const generateBtn = document.getElementById('generateBtn');
+    const statusText = document.getElementById('statusText');
+    const resultBox = document.getElementById('resultBox');
+    const outputVideo = document.getElementById('outputVideo');
+    const downloadLink = document.getElementById('downloadLink');
+
+    let selectedFile = null;
+
+    imageInput.addEventListener('change', (e) => {
+      selectedFile = e.target.files[0];
+      if (selectedFile) {
+        previewImg.src = URL.createObjectURL(selectedFile);
+        previewImg.style.display = 'block';
+        uploadText.style.display = 'none';
+      }
+    });
+
+    generateBtn.addEventListener('click', async () => {
+      if (!selectedFile) {
+        alert("Pehle koi tasveer (photo) select karein!");
+        return;
+      }
+
+      const prompt = document.getElementById('promptInput').value.trim() || "Smooth cinematic motion, high quality";
+      generateBtn.disabled = true;
+      resultBox.style.display = 'none';
+      statusText.innerText = "Free AI Server se connect ho raha hai... (1-2 minute lag sakte hain)";
+
+      try {
+        const client = await Client.connect("Wan-AI/Wan2.1-I2V-14B-480P");
+        statusText.innerText = "Video ban rahi hai, thoda intezar karein...";
+
+        const result = await client.predict("/predict", {
+          image: selectedFile,
+          prompt: prompt
+        });
+
+        const videoUrl = result.data[0].url;
+        outputVideo.src = videoUrl;
+        downloadLink.href = videoUrl;
+        resultBox.style.display = 'block';
+        statusText.innerText = "Video tayyar hai!";
+      } catch (err) {
+        console.error(err);
+        statusText.innerText = "Free server abhi busy hai. Thodi der baad dobara try karein.";
+      } finally {
+        generateBtn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
